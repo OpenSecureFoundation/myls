@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,44 @@ static void parse_long_option(const char *arg, t_options *options) {
 	else if (strcmp(arg, "--version") == 0) {
 		printf("myls version 1.0 - Equipe 6\n");
 		exit(0);
+	}
+	else if (strncmp(arg, "--sort=", 7) == 0) {
+		const char *val = arg + 7;
+
+		if (strcmp(val, "size") == 0) options->option_S = 1;
+		else if (strcmp(val, "time") == 0) options->option_t = 1;
+		else if (strcmp(val, "none") == 0) options->option_U = 1;
+		else if (strcmp(val, "extension") == 0) options->option_X = 1;
+		else if (strcmp(val, "verison") == 0) options->option_v = 1;
+		else if (strcmp(val, "name") == 0) {/* tri par nom, par défaut */}
+		else if (strcmp(val, "width") == 0) {/* tri par largeur */}
+	}
+	else if (strncmp(arg, "--time=", 7) == 0) {
+		const char *val = arg + 7;
+		
+		if (strcmp(val, "atime") == 0 || strcmp(val, "access") == 0 || strcmp(val, "use") == 0) options->option_u = 1;
+		else if (strcmp(val, "ctime") == 0 || strcmp(val, "status") == 0) options->option_c = 1;
+		/* mtime est activé par défaut */
+	}
+	else if (strncmp(arg, "--block-size=", 13) == 0) {
+		options->option_block_size_value = atoi(arg + 13);
+	}
+	else if (strncmp(arg, "--width=", 8) == 0) {
+		options->option_w_valeur = atoi(arg + 8);
+		options->option_w = 1;
+	}
+	else if (strncmp(arg, "--hide=", 7) == 0) {
+		options->option_hide_pattern = strdup(arg + 7);
+	}
+	else if (strncmp(arg, "--ignore=", 9) == 0) {
+		options->option_ignore_pattern = strdup(arg + 9);
+	}
+	else if (strncmp(arg, "--time-style=", 13) == 0) {
+		options->option_time_style = strdup(arg + 13);
+	}
+	else if (strncmp(arg, "--tabsize=", 10) == 0) {
+		options->option_T_valeur = atoi(arg + 10);
+		options->option_T = 1;
 	}
 	else {
 		fprintf(stderr, "myls:option inconnue '%s'\n", arg);
@@ -129,4 +168,19 @@ void parse_options(int argc, char **argv, t_options *options, int *path_start) {
 		i++;
 	}
 	*path_start = i;
+}
+
+void free_options(t_options *options) {
+	if (options->option_hide_pattern) {
+		free(options->option_hide_pattern);
+		options->option_hide_pattern = NULL;
+	}
+	if (options->option_ignore_pattern) {
+		free(options->option_ignore_pattern);
+		options->option_ignore_pattern = NULL;
+	}
+	if (options->option_time_style) {
+		free(options->option_time_style);
+		options->option_time_style = NULL;
+	}
 }

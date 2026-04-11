@@ -61,10 +61,16 @@ typedef struct s_options {
 	int option_si;
 	int option_dereference_command_line_symlink_to_dir;
 
+	int option_block_size_value;
+	char *option_hide_pattern;
+	char *option_ignore_pattern;
+	char *option_time_style;
+
 } t_options;
 
 void	init_options(t_options *options);
 void	parse_options(int argc, char **argv, t_options *options, int *path_start);
 
+void free_options(t_options *options);
 
 #endif
