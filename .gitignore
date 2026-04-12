@@ -1,0 +1,12 @@
+# Fichiers compilés
+*.o
+myls
+
+# Fichiers temporaires
+*~
+*.swp
+*.swo
+
+# Dossiers système
+.DS_Store
+Thumbs.db

@@ -4,6 +4,7 @@
 int main(int argc, char **argv) {
 	t_options options;
 	int path_start;
+	int exit_code = 0;
 	
 	init_options(&options);
 	parse_options(argc, argv, &options, &path_start);
@@ -17,5 +18,6 @@ int main(int argc, char **argv) {
 			printf("Chemin : %s\n", argv[i]); //temporaire
 		}
 	}
-	return 0;
+	free_options(&options);
+	return exit_code;
 }
