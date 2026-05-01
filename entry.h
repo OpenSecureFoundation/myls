@@ -9,5 +9,6 @@ typedef struct s_entry {
 } t_entry;
 
 int fill_entry(t_entry *entry, const char *name, const char *path);
+void free_entry(t_entry *entry);
 
 #endif

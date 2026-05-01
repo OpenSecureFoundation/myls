@@ -16,3 +16,9 @@ int fill_entry(t_entry *entry, const char *name, const char *path)
         return -1;
     return 0;
 }
+
+void free_entry(t_entry *entry)
+{
+    free(entry->name);
+    entry->name = NULL;
+}
