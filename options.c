@@ -150,18 +150,35 @@ static void parse_short_option(char c, t_options *options) {
 
 void parse_options(int argc, char **argv, t_options *options, int *path_start) {
 	int i = 1;
-	while (i<argc && argv[i][0]=='-') {
-		if (argv[i][1] == '-') { //dans ce cas il s’agit d’une option longue
+	while (i < argc && argv[i][0] == '-') {
+		if (argv[i][1] == '-') { // Option longue
 			if (argv[i][2] == '\0') {
 				i++;
 				break;
 			}
 			parse_long_option(argv[i], options);
 		}
-		else { // option courte
+		else { // Option courte
 			int j = 1;
 			while (argv[i][j]) {
-				parse_short_option(argv[i][j], options);
+				char c = argv[i][j];
+				if (c == 'T' || c == 'w') {
+					int *val_ptr = (c == 'T') ? &options->option_T_valeur : &options->option_w_valeur;
+					int *flag_ptr = (c == 'T') ? &options->option_T : &options->option_w;
+					*flag_ptr = 1;
+					if (argv[i][j + 1] != '\0') {
+						*val_ptr = atoi(&argv[i][j + 1]);
+						break; // Consomme le reste de la chaîne
+					} else if (i + 1 < argc) {
+						i++;
+						*val_ptr = atoi(argv[i]);
+						break; // Consomme l'argument suivant
+					} else {
+						fprintf(stderr, "myls: l'option '-%c' nécessite un argument\n", c);
+						exit(2);
+					}
+				}
+				parse_short_option(c, options);
 				j++;
 			}
 		}
