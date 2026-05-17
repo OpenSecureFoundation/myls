@@ -54,8 +54,8 @@ check "Aucun argument"        "./myls"       "Répertoire courant" 0
 check "Option -l seule"       "./myls -l"    "Répertoire courant" 0
 check "Option -a seule"       "./myls -a"    "Répertoire courant" 0
 check "Options combinées -la" "./myls -la"   "Répertoire courant" 0
-check "Options combinées -lah""./myls -lah"  "Répertoire courant" 0
-check "Options combinées -laR""./myls -laR"  "Répertoire courant" 0
+check "Options combinées -lah" "./myls -lah"  "Répertoire courant" 0
+check "Options combinées -laR" "./myls -laR"  "Répertoire courant" 0
 echo ""
 
 # ── Groupe 2 : Chemins ──────────────────────────────────────
@@ -74,7 +74,7 @@ check "--recursive"       "./myls --recursive"      "Répertoire courant" 0
 check "--human-readable"  "./myls --human-readable" "Répertoire courant" 0
 check "--reverse"         "./myls --reverse"        "Répertoire courant" 0
 check "--inode"           "./myls --inode"          "Répertoire courant" 0
-check "--numeric-uid-gid" "./myls --numeric-uid-gid""Répertoire courant" 0
+check "--numeric-uid-gid" "./myls --numeric-uid-gid" "Répertoire courant" 0
 check "--no-group"        "./myls --no-group"       "Répertoire courant" 0
 check "--dereference"     "./myls --dereference"    "Répertoire courant" 0
 check "--directory"       "./myls --directory"      "Répertoire courant" 0
@@ -85,7 +85,7 @@ echo "--- Groupe 4 : --color ---"
 check "--color=always"    "./myls --color=always"   "Répertoire courant" 0
 check "--color=never"     "./myls --color=never"    "Répertoire courant" 0
 check "--color=auto"      "./myls --color=auto"     "Répertoire courant" 0
-check "--color sans valeur""./myls --color"         "Répertoire courant" 0
+check "--color sans valeur" "./myls --color"         "Répertoire courant" 0
 echo ""
 
 # ── Groupe 5 : Cas limites ───────────────────────────────────
@@ -123,6 +123,12 @@ check "--hide=*.txt"        "./myls --hide=*.txt"         "Répertoire courant" 
 check "--ignore=*.log"      "./myls --ignore=*.log"       "Répertoire courant" 0
 check "--time-style=full-iso" "./myls --time-style=full-iso" "Répertoire courant" 0
 check "--tabsize=4"         "./myls --tabsize=4"          "Répertoire courant" 0
+check "Option -w80"         "./myls -w80"                 "Répertoire courant" 0
+check "Option -w 120"       "./myls -w 120"               "Répertoire courant" 0
+check "Option -T4"          "./myls -T4"                  "Répertoire courant" 0
+check "Option -T 12"        "./myls -T 12"                "Répertoire courant" 0
+check "Option -w manquante" "./myls -w"                   "nécessite un argument" 2
+check "Option -T manquante" "./myls -T"                   "nécessite un argument" 2
 echo ""
 
 # ── Résumé ───────────────────────────────────────────────────
