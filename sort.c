@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<stdlib.h>
 #include <sys/stat.h>
 typedef struct {
     char name[256]; //file name
@@ -49,15 +50,15 @@ int compare_by_atime(const void *x, const void *y){
 } 
 
 int compare_by_ctime(const void *x, const void *y){
-FileEntry *fichier1 = (FileEntry *)x;
-FileEntry *fichier2 = (FileEntry *)y;
-if(fichier1 -> info.st_ctime < fichier2 -> info.st_ctime){
-    return 1 ;
-}
-if(fichier1 -> info.st_ctime > fichier2 -> info.st_ctime){
-    return -1 ;
-}
-return 0;
+    FileEntry *fichier1 = (FileEntry *)x ;
+    FileEntry *fichier2 = (FileEntry *)y ;
+    if(fichier1 -> info.st_ctime < fichier2 -> info.st_ctime){
+        return 1;
+    }
+    if(fichier1 -> info.st_ctime > fichier2 -> info.st_ctime){
+        return -1;
+    }
+    return 0;
 }
 
 void reverse_sort(FileEntry *fichiers, int n){
@@ -70,4 +71,25 @@ void reverse_sort(FileEntry *fichiers, int n){
         start++ ;
         end-- ;
     }
+}
+
+void sort_files(FileEntry *fichiers, int n, char choice, int reverse){
+    if(choice == "t"){
+        qsort(fichiers, n, sizeof(FileEntry), compare_by_mtime);
+    }
+    else if(choice == "s"){
+        qsort(fichiers, n, sizeof(FileEntry), compare_by_size);
+    } 
+    else if(choice == "u"){
+        qsort(fichiers, n, sizeof(FileEntry), compare_by_atime);
+    }
+    else if(choice == "c"){
+        qsort(fichiers, n, sizeof(FileEntry), compare_by_ctime);
+    }
+    else {
+        qsort(fichiers, n, sizeof(FileEntry), compare_by_name);
+    }
+        if(reverse == 1){
+            reverse_sort(fichiers, n);
+        }
 }
