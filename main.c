@@ -31,7 +31,8 @@ int main(int argc, char **argv) {
 		process_path(".", &options);
 	} else {
 		for (int i = path_start; i < argc; i++) {
-			printf("Chemin : %s\n", argv[i]);
+			if (argc - path_start > 1)
+				printf("Chemin : %s\n", argv[i]);
 			process_path(argv[i], &options);
 			if (i < argc-1)
 				printf("\n");
