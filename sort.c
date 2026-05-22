@@ -77,7 +77,7 @@ void sort_files(FileEntry *fichiers, int n, char choice, int reverse){
     if(choice == "t"){
         qsort(fichiers, n, sizeof(FileEntry), compare_by_mtime);
     }
-    else if(choice == "s"){
+    else if(choice == "S"){
         qsort(fichiers, n, sizeof(FileEntry), compare_by_size);
     } 
     else if(choice == "u"){
