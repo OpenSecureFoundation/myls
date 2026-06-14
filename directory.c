@@ -1,47 +1,40 @@
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
+#include "directory.h"
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <dirent.h>
-#include "directory.h"
-#include "entry.h"
-
-t_entry *read_directory(const char *path, int *count)
+t_entry *read_directory(const char *path, t_options *opts, int *count)
 {
     DIR           *dir;
     struct dirent *dp;
-    t_entry       *entries = NULL;
+    t_entry       *entries;
     int            capacity = 64;
     int            n = 0;
 
     dir = opendir(path);
     if (!dir) {
         perror(path);
-        *count = 0;
         return NULL;
     }
-
-    entries = malloc(sizeof(t_entry) * capacity);
+    entries = malloc(capacity * sizeof(t_entry));
     if (!entries) {
         closedir(dir);
-        *count = 0;
         return NULL;
     }
-
     while ((dp = readdir(dir)) != NULL) {
+        if (!opts->option_a && dp->d_name[0] == '.')
+            continue;
         if (n >= capacity) {
             capacity *= 2;
-            entries = realloc(entries, sizeof(t_entry) * capacity);
+            entries = realloc(entries, capacity * sizeof(t_entry));
             if (!entries) {
                 closedir(dir);
-                *count = 0;
                 return NULL;
             }
         }
-        fill_entry(&entries[n], dp->d_name, path);
-        n++;
+        if (fill_entry(&entries[n], dp->d_name, path) == 0)
+            n++;
     }
-
     closedir(dir);
     *count = n;
     return entries;
