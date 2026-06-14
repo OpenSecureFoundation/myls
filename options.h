@@ -1,10 +1,28 @@
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
+typedef enum e_color_mode
+{
+	COLOR_NEVER = 0,
+	COLOR_ALWAYS = 1,
+	COLOR_AUTO = 2
+}	t_color_mode;
+
+typedef enum e_sort_mode
+{
+	SORT_NAME = 0,
+	SORT_SIZE,
+	SORT_TIME,
+	SORT_NONE,
+	SORT_EXTENSION,
+	SORT_VERSION,
+	SORT_WIDTH
+}	t_sort_mode;
+
 typedef struct s_options {
 	int option_a;
 	int option_A;
-	
+
 	int option_l;
 	int option_1;
 	int option_C;
@@ -61,7 +79,10 @@ typedef struct s_options {
 	int option_si;
 	int option_dereference_command_line_symlink_to_dir;
 
+	int option_file_type;
 	int option_block_size_value;
+	t_color_mode color_mode;
+	t_sort_mode sort_mode;
 	char *option_hide_pattern;
 	char *option_ignore_pattern;
 	char *option_time_style;
@@ -70,7 +91,6 @@ typedef struct s_options {
 
 void	init_options(t_options *options);
 void	parse_options(int argc, char **argv, t_options *options, int *path_start);
-
-void free_options(t_options *options);
+void	free_options(t_options *options);
 
 #endif
