@@ -8,7 +8,7 @@
 
 void process_path(const char *path, t_options *options) {
     int count = 0;
-    t_entry *entries = read_directory(path, &count);
+    t_entry *entries = read_directory(path, options, &count);
     if (entries) {
 	sort_entries(entries, count, options);
         display_entries(entries, count, options);

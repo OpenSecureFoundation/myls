@@ -1,16 +1,13 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include <sys/stat.h>
-typedef struct {
-    char name[256]; //file name
-    struct stat info; //stocke toutes les infos du fichier
-} 
-FileEntry ; 
+#include "sort.h"
+#include <string.h>
 
-int compare_by_name(const void *x, const void *y){
-FileEntry *fichier1 = (FileEntry *)x ;
-FileEntry *fichier2 = (FileEntry *)y ;
-return strcmp(fichier1->name, fichier2->name);
+static void swap_entries(t_entry *a, t_entry *b)
+{
+    t_entry tmp;
+
+    tmp = *a;
+    *a = *b;
+    *b = tmp;
 }
 
 static int compare_by_name(t_entry *a, t_entry *b)
@@ -36,28 +33,42 @@ static int compare_by_atime(t_entry *a, t_entry *b)
     return compare_by_name(a, b);
 }
 
-int compare_by_atime(const void *x, const void *y){
-    FileEntry *fichier1 = (FileEntry *)x ;
-    FileEntry *fichier2 = (FileEntry *)y ;
-    if(fichier1 -> info.st_atime < fichier2 -> info.st_atime){
-        return 1 ;
-    }
-    if(fichier1 -> info.st_atime > fichier2 -> info.st_atime){
-        return -1 ;
-    }
-    return 0 ;
-} 
-
-int compare_by_ctime(const void *x, const void *y){
-    FileEntry *fichier1 = (FileEntry *)x ;
-    FileEntry *fichier2 = (FileEntry *)y ;
-    if(fichier1 -> info.st_ctime < fichier2 -> info.st_ctime){
+static int compare_by_ctime(t_entry *a, t_entry *b)
+{
+    if (a->info.st_ctime < b->info.st_ctime)
         return 1;
-    }
-    if(fichier1 -> info.st_ctime > fichier2 -> info.st_ctime){
+    if (a->info.st_ctime > b->info.st_ctime)
         return -1;
-    }
-    return 0;
+    return compare_by_name(a, b);
+}
+
+static int compare_by_size(t_entry *a, t_entry *b)
+{
+    if (a->info.st_size < b->info.st_size)
+        return 1;
+    if (a->info.st_size > b->info.st_size)
+        return -1;
+    return compare_by_name(a, b);
+}
+
+static const char *get_extension(const char *name)
+{
+    const char *dot;
+
+    dot = strrchr(name, '.');
+    if (dot == NULL || dot == name)
+        return "";
+    return dot + 1;
+}
+
+static int compare_by_extension(t_entry *a, t_entry *b)
+{
+    int cmp;
+
+    cmp = strcmp(get_extension(a->name), get_extension(b->name));
+    if (cmp == 0)
+        return compare_by_name(a, b);
+    return cmp;
 }
 
 static int compare_entries(t_entry *a, t_entry *b, t_options *options)
@@ -106,25 +117,4 @@ void sort_entries(t_entry *entries, int count, t_options *options)
         }
         i++;
     }
-}
-
-void sort_files(FileEntry *fichiers, int n, char choice, int reverse){
-    if(choice == "t"){
-        qsort(fichiers, n, sizeof(FileEntry), compare_by_mtime);
-    }
-    else if(choice == "S"){
-        qsort(fichiers, n, sizeof(FileEntry), compare_by_size);
-    } 
-    else if(choice == "u"){
-        qsort(fichiers, n, sizeof(FileEntry), compare_by_atime);
-    }
-    else if(choice == "c"){
-        qsort(fichiers, n, sizeof(FileEntry), compare_by_ctime);
-    }
-    else {
-        qsort(fichiers, n, sizeof(FileEntry), compare_by_name);
-    }
-        if(reverse == 1){
-            reverse_sort(fichiers, n);
-        }
 }

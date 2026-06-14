@@ -4,43 +4,51 @@
 #include <time.h>
 #include <pwd.h>
 #include <grp.h>
+#include <sys/stat.h>
 
-// Colors for the Terminal
+/* Couleurs ANSI pour le terminal */
 #define ANSI_BLUE   "\x1b[34m"
 #define ANSI_CYAN   "\x1b[36m"
 #define ANSI_RESET  "\x1b[0m"
 
-void print_with_color(t_entry entry) {
-    if (S_ISDIR(entry.info.st_mode)) 
+static void print_with_color(t_entry entry)
+{
+    if (S_ISDIR(entry.info.st_mode))
         printf(ANSI_BLUE "%s" ANSI_RESET, entry.name);
-    else if (S_ISLNK(entry.info.st_mode)) 
+    else if (S_ISLNK(entry.info.st_mode))
         printf(ANSI_CYAN "%s" ANSI_RESET, entry.name);
-    else 
+    else
         printf("%s", entry.name);
 }
 
-void display_long_format(t_entry entry, t_options *opts) {
+static void display_long_format(t_entry entry, t_options *opts)
+{
     char perms[11];
-    char time_buf[20];
-    
+    char time_buf[64];
+
     struct passwd *pw = getpwuid(entry.info.st_uid);
     struct group  *gr = getgrgid(entry.info.st_gid);
-    
-    format_permissions(entry.info.st_mode, perms);
-    strftime(time_buf, sizeof(time_buf), "%b %d %H:%M", localtime(&entry.info.st_mtime));
+    struct tm *tm_info = localtime(&entry.info.st_mtime);
 
-    printf("%s %2ld %-8s %-8s ", 
-           perms, 
-           entry.info.st_nlink, 
-           pw ? pw->pw_name : "unknown", 
+    format_permissions(entry.info.st_mode, perms);
+
+    if (tm_info)
+        strftime(time_buf, sizeof(time_buf), "%b %d %H:%M", tm_info);
+    else
+        snprintf(time_buf, sizeof(time_buf), "??? ?? ??:??");
+
+    printf("%s %2ld %-8s %-8s ",
+           perms,
+           (long)entry.info.st_nlink,
+           pw ? pw->pw_name : "unknown",
            gr ? gr->gr_name : "unknown");
 
     if (opts->option_h) {
-        char human_size[10];
+        char human_size[32];
         format_size_readable(entry.info.st_size, human_size);
-        printf("%6s ", human_size);
+        printf("%8s ", human_size);
     } else {
-        printf("%8ld ", entry.info.st_size);
+        printf("%8ld ", (long)entry.info.st_size);
     }
 
     printf("%s ", time_buf);
@@ -48,58 +56,23 @@ void display_long_format(t_entry entry, t_options *opts) {
     printf("\n");
 }
 
-void display_entries(t_entry *entries, int count, t_options *opts) {
+void display_entries(t_entry *entries, int count, t_options *opts)
+{
     for (int i = 0; i < count; i++) {
         if (opts->option_l) {
             display_long_format(entries[i], opts);
         } else {
             print_with_color(entries[i]);
-            
+
             if (i < count - 1) {
-                printf(opts->option_m ? ", " : "  ");
+                if (opts->option_m)
+                    printf(", ");
+                else
+                    printf("  ");
             }
         }
     }
-    if (!opts->option_l) printf("\n");
-}
 
-void display_entries(t_entry *entries, int count, t_options *opts) {
-    for (int i = 0; i < count; i++) {
-        if (!opts->option_a && entries[i].name[0] == '.') {
-            continue;
-        }
-
-        if (opts->option_l) {
-            char perms[11];
-            format_permissions(entries[i].info.st_mode, perms);
-            
-            struct passwd *pw = getpwuid(entries[i].info.st_uid);
-            struct group  *gr = getgrgid(entries[i].info.st_gid);
-            
-            char size_str[32];
-            if (opts->option_h) {
-                format_size_readable(entries[i].info.st_size, size_str);
-            } else {
-                sprintf(size_str, "%ld", entries[i].info.st_size);
-            }
-
-            char time_str[64];
-            struct tm *tm_info = localtime(&entries[i].info.st_mtime);
-            strftime(time_str, sizeof(time_str), "%b %d %H:%M", tm_info);
-
-            printf("%s %ld %s %s %8s %s %s\n",
-                   perms,
-                   (long)entries[i].info.st_nlink,
-                   pw ? pw->pw_name : "???",
-                   gr ? gr->gr_name : "???",
-                   size_str,
-                   time_str,
-                   entries[i].name);
-        } else {
-            printf("%s  ", entries[i].name);
-        }
-    }
-    if (!opts->option_l && count > 0) {
+    if (!opts->option_l)
         printf("\n");
-    }
 }
