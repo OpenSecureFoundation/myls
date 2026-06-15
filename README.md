@@ -19,6 +19,16 @@ make re
 ./myls -R dossier
 ```
 
+Pour lancer `myls` depuis n'importe quel répertoire :
+
+```sh
+make install
+myls -la
+```
+
+Par défaut, `make install` installe le binaire dans `~/.local/bin`, qui doit
+être présent dans la variable `PATH`.
+
 ## Options supportées
 
 Sélection et chemins :
