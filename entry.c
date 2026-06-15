@@ -103,3 +103,15 @@ int entry_is_symlink(const t_entry *entry)
 {
 	return S_ISLNK(entry->lstat_info.st_mode);
 }
+
+int entry_is_dir_for_grouping(const t_entry *entry)
+{
+	struct stat	target;
+
+	if (S_ISDIR(entry->info.st_mode))
+		return 1;
+	if (S_ISLNK(entry->lstat_info.st_mode)
+		&& stat(entry->path, &target) == 0 && S_ISDIR(target.st_mode))
+		return 1;
+	return 0;
+}

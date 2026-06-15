@@ -201,6 +201,9 @@ static void	format_time_field(const t_entry *entry, t_options *opts,
 {
 	struct tm	*tm_info;
 	time_t		t;
+	const char	*style;
+	const char	*custom;
+	const char	*newline;
 
 	t = entry_selected_time(entry, opts);
 	tm_info = localtime(&t);
@@ -208,15 +211,24 @@ static void	format_time_field(const t_entry *entry, t_options *opts,
 		snprintf(buf, len, "??? ?? ??:??");
 		return;
 	}
+	style = opts->option_time_style;
+	if (style && strncmp(style, "posix-", 6) == 0)
+		style += 6;
+	if (style && style[0] == '+') {
+		custom = style + 1;
+		newline = strchr(custom, '\n');
+		if (newline)
+			custom = newline + 1;
+		if (strftime(buf, len, custom, tm_info) == 0 && len > 0)
+			buf[0] = '\0';
+		return;
+	}
 	if (opts->option_full_time
-		|| (opts->option_time_style
-			&& strcmp(opts->option_time_style, "full-iso") == 0))
+		|| (style && strcmp(style, "full-iso") == 0))
 		strftime(buf, len, "%Y-%m-%d %H:%M:%S %z", tm_info);
-	else if (opts->option_time_style
-		&& strcmp(opts->option_time_style, "long-iso") == 0)
+	else if (style && strcmp(style, "long-iso") == 0)
 		strftime(buf, len, "%Y-%m-%d %H:%M", tm_info);
-	else if (opts->option_time_style
-		&& strcmp(opts->option_time_style, "iso") == 0)
+	else if (style && strcmp(style, "iso") == 0)
 		strftime(buf, len, "%m-%d %H:%M", tm_info);
 	else
 		strftime(buf, len, "%b %e %H:%M", tm_info);

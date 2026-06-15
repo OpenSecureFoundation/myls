@@ -73,6 +73,12 @@ static void	parse_error(const char *message, const char *arg)
 	exit(2);
 }
 
+static void	parse_unsupported(const char *arg)
+{
+	fprintf(stderr, "myls: unsupported option '%s'\n", arg);
+	exit(2);
+}
+
 static void	set_string_option(char **dst, const char *value)
 {
 	char	*copy;
@@ -106,6 +112,22 @@ static void	parse_sort_value(const char *val, t_options *options)
 		parse_error("invalid argument for --sort", val);
 }
 
+static void	parse_format_value(const char *val, t_options *options)
+{
+	if (strcmp(val, "verbose") == 0 || strcmp(val, "long") == 0)
+		options->option_l = 1;
+	else if (strcmp(val, "commas") == 0)
+		set_display_mode(options, 'm');
+	else if (strcmp(val, "horizontal") == 0 || strcmp(val, "across") == 0)
+		set_display_mode(options, 'x');
+	else if (strcmp(val, "vertical") == 0)
+		set_display_mode(options, 'C');
+	else if (strcmp(val, "single-column") == 0)
+		set_display_mode(options, '1');
+	else
+		parse_error("invalid argument for --format", val);
+}
+
 static void	parse_time_value(const char *val, t_options *options)
 {
 	options->option_u = 0;
@@ -115,7 +137,12 @@ static void	parse_time_value(const char *val, t_options *options)
 		options->option_u = 1;
 	else if (strcmp(val, "ctime") == 0 || strcmp(val, "status") == 0)
 		options->option_c = 1;
-	else if (strcmp(val, "mtime") != 0 && strcmp(val, "modify") != 0)
+	else if (strcmp(val, "mtime") == 0 || strcmp(val, "modify") == 0
+		|| strcmp(val, "modification") == 0)
+		return;
+	else if (strcmp(val, "birth") == 0 || strcmp(val, "creation") == 0)
+		parse_unsupported("--time=birth");
+	else
 		parse_error("invalid argument for --time", val);
 }
 
@@ -137,8 +164,114 @@ static void	parse_color_value(const char *val, t_options *options)
 		parse_error("invalid argument for --color", val);
 }
 
-static void	parse_long_option(const char *arg, t_options *options)
+static void	parse_classify_value(const char *val, t_options *options)
 {
+	if (strcmp(val, "never") == 0 || strcmp(val, "no") == 0
+		|| strcmp(val, "none") == 0) {
+		options->option_F = 0;
+		options->option_p = 0;
+	}
+	else if (strcmp(val, "always") == 0 || strcmp(val, "yes") == 0
+		|| strcmp(val, "force") == 0 || strcmp(val, "auto") == 0
+		|| strcmp(val, "tty") == 0 || strcmp(val, "if-tty") == 0) {
+		options->option_F = 1;
+		options->option_file_type = 0;
+	}
+	else
+		parse_error("invalid argument for --classify", val);
+}
+
+static void	parse_indicator_style(const char *val, t_options *options)
+{
+	options->option_F = 0;
+	options->option_p = 0;
+	options->option_file_type = 0;
+	if (strcmp(val, "none") == 0)
+		return;
+	if (strcmp(val, "slash") == 0)
+		options->option_p = 1;
+	else if (strcmp(val, "file-type") == 0) {
+		options->option_F = 1;
+		options->option_file_type = 1;
+	}
+	else if (strcmp(val, "classify") == 0) {
+		options->option_F = 1;
+		options->option_file_type = 0;
+	}
+	else
+		parse_error("invalid argument for --indicator-style", val);
+}
+
+static void	parse_quoting_style(const char *val, t_options *options)
+{
+	options->option_b = 0;
+	options->option_q = 0;
+	options->option_N = 0;
+	options->option_Q = 0;
+	if (strcmp(val, "literal") == 0 || strcmp(val, "locale") == 0)
+		options->option_N = 1;
+	else if (strcmp(val, "c") == 0) {
+		options->option_Q = 1;
+		options->option_b = 1;
+	}
+	else if (strcmp(val, "escape") == 0)
+		options->option_b = 1;
+	else if (strncmp(val, "shell", 5) == 0)
+		options->option_Q = 1;
+	else
+		parse_error("invalid argument for --quoting-style", val);
+}
+
+static int	parse_size_value(const char *val)
+{
+	char	*end;
+	long	size;
+
+	size = strtol(val, &end, 10);
+	if (size <= 0)
+		parse_error("invalid argument for --block-size", val);
+	if (strcmp(end, "K") == 0 || strcmp(end, "KiB") == 0)
+		size *= 1024L;
+	else if (strcmp(end, "M") == 0 || strcmp(end, "MiB") == 0)
+		size *= 1024L * 1024L;
+	else if (strcmp(end, "G") == 0 || strcmp(end, "GiB") == 0)
+		size *= 1024L * 1024L * 1024L;
+	else if (strcmp(end, "KB") == 0)
+		size *= 1000L;
+	else if (strcmp(end, "MB") == 0)
+		size *= 1000L * 1000L;
+	else if (strcmp(end, "GB") == 0)
+		size *= 1000L * 1000L * 1000L;
+	else if (*end != '\0')
+		parse_error("invalid argument for --block-size", val);
+	if (size > 2147483647L)
+		size = 2147483647L;
+	return (int)size;
+}
+
+static const char	*long_value(int argc, char **argv, int *i,
+	const char *arg, const char *prefix)
+{
+	size_t	len;
+
+	len = strlen(prefix);
+	if (strncmp(arg, prefix, len) == 0 && arg[len] == '=')
+		return arg + len + 1;
+	if (strcmp(arg, prefix) == 0) {
+		if (*i + 1 >= argc)
+			parse_error("option requires an argument", arg);
+		(*i)++;
+		return argv[*i];
+	}
+	return NULL;
+}
+
+static void	parse_long_option(int argc, char **argv, int *i, t_options *options)
+{
+	const char	*arg;
+	const char	*value;
+
+	arg = argv[*i];
 	if (strcmp(arg, "--all") == 0)
 		options->option_a = 1;
 	else if (strcmp(arg, "--almost-all") == 0)
@@ -152,11 +285,13 @@ static void	parse_long_option(const char *arg, t_options *options)
 	else if (strcmp(arg, "--directory") == 0)
 		options->option_d = 1;
 	else if (strcmp(arg, "--dired") == 0)
-		options->option_D = 1;
+		parse_unsupported(arg);
 	else if (strcmp(arg, "--classify") == 0) {
 		options->option_F = 1;
 		options->option_file_type = 0;
 	}
+	else if (strncmp(arg, "--classify=", 11) == 0)
+		parse_classify_value(arg + 11, options);
 	else if (strcmp(arg, "--file-type") == 0) {
 		options->option_F = 1;
 		options->option_file_type = 1;
@@ -185,10 +320,18 @@ static void	parse_long_option(const char *arg, t_options *options)
 		options->option_N = 1;
 	else if (strcmp(arg, "--indicator-style=slash") == 0)
 		options->option_p = 1;
+	else if ((value = long_value(argc, argv, i, arg, "--indicator-style")) != NULL)
+		parse_indicator_style(value, options);
 	else if (strcmp(arg, "--hide-control-chars") == 0)
 		options->option_q = 1;
+	else if (strcmp(arg, "--show-control-chars") == 0) {
+		options->option_b = 0;
+		options->option_q = 0;
+	}
 	else if (strcmp(arg, "--quote-name") == 0)
 		options->option_Q = 1;
+	else if ((value = long_value(argc, argv, i, arg, "--quoting-style")) != NULL)
+		parse_quoting_style(value, options);
 	else if (strcmp(arg, "--reverse") == 0)
 		options->option_r = 1;
 	else if (strcmp(arg, "--recursive") == 0)
@@ -206,26 +349,42 @@ static void	parse_long_option(const char *arg, t_options *options)
 	else if (strcmp(arg, "--zero") == 0)
 		options->option_zero = 1;
 	else if (strcmp(arg, "--hyperlink") == 0)
-		options->option_hyperlink = 1;
-	else if (strncmp(arg, "--sort=", 7) == 0)
-		parse_sort_value(arg + 7, options);
-	else if (strncmp(arg, "--time=", 7) == 0)
-		parse_time_value(arg + 7, options);
-	else if (strncmp(arg, "--block-size=", 13) == 0)
-		options->option_block_size_value = atoi(arg + 13);
-	else if (strncmp(arg, "--width=", 8) == 0) {
-		options->option_w_valeur = atoi(arg + 8);
+		parse_unsupported(arg);
+	else if (strncmp(arg, "--hyperlink=", 12) == 0)
+		parse_unsupported("--hyperlink");
+	else if (strcmp(arg, "--context") == 0 || strcmp(arg, "--lcontext") == 0
+		|| strcmp(arg, "--scontext") == 0)
+		parse_unsupported(arg);
+	else if ((value = long_value(argc, argv, i, arg, "--sort")) != NULL)
+		parse_sort_value(value, options);
+	else if ((value = long_value(argc, argv, i, arg, "--format")) != NULL)
+		parse_format_value(value, options);
+	else if ((value = long_value(argc, argv, i, arg, "--time")) != NULL)
+		parse_time_value(value, options);
+	else if ((value = long_value(argc, argv, i, arg, "--block-size")) != NULL)
+		options->option_block_size_value = parse_size_value(value);
+	else if ((value = long_value(argc, argv, i, arg, "--width")) != NULL) {
+		options->option_w_valeur = atoi(value);
 		options->option_w = 1;
 	}
-	else if (strncmp(arg, "--hide=", 7) == 0)
-		set_string_option(&options->option_hide_pattern, arg + 7);
-	else if (strncmp(arg, "--ignore=", 9) == 0)
-		set_string_option(&options->option_ignore_pattern, arg + 9);
-	else if (strncmp(arg, "--time-style=", 13) == 0)
-		set_string_option(&options->option_time_style, arg + 13);
-	else if (strncmp(arg, "--tabsize=", 10) == 0) {
-		options->option_T_valeur = atoi(arg + 10);
+	else if ((value = long_value(argc, argv, i, arg, "--hide")) != NULL)
+		set_string_option(&options->option_hide_pattern, value);
+	else if ((value = long_value(argc, argv, i, arg, "--ignore")) != NULL)
+		set_string_option(&options->option_ignore_pattern, value);
+	else if ((value = long_value(argc, argv, i, arg, "--time-style")) != NULL)
+		set_string_option(&options->option_time_style, value);
+	else if ((value = long_value(argc, argv, i, arg, "--tabsize")) != NULL) {
+		options->option_T_valeur = atoi(value);
 		options->option_T = 1;
+	}
+	else if (strcmp(arg, "--help") == 0) {
+		printf("Usage: myls [OPTION]... [FILE]...\n");
+		printf("Academic ls implementation. Try README.md for support status.\n");
+		exit(0);
+	}
+	else if (strcmp(arg, "--version") == 0) {
+		printf("myls 1.0\n");
+		exit(0);
 	}
 	else
 		parse_error("unrecognized option", arg);
@@ -248,7 +407,7 @@ static void	parse_short_option(char c, t_options *options)
 	else if (c == 'd')
 		options->option_d = 1;
 	else if (c == 'D')
-		options->option_D = 1;
+		parse_unsupported("-D");
 	else if (c == 'f') {
 		options->option_f = 1;
 		options->option_a = 1;
@@ -313,7 +472,7 @@ static void	parse_short_option(char c, t_options *options)
 	else if (c == 'X')
 		set_sort_mode(options, SORT_EXTENSION);
 	else if (c == 'Z')
-		options->option_Z = 1;
+		parse_unsupported("-Z");
 	else if (c == '1')
 		set_display_mode(options, '1');
 	else {
@@ -336,19 +495,42 @@ static int	parse_numeric_argument(int argc, char **argv, int *i, int *j, int *ds
 	return 0;
 }
 
+static int	parse_string_argument(int argc, char **argv, int *i, int *j, char **dst)
+{
+	if (argv[*i][*j + 1] != '\0') {
+		set_string_option(dst, &argv[*i][*j + 1]);
+		return 1;
+	}
+	if (*i + 1 < argc) {
+		(*i)++;
+		set_string_option(dst, argv[*i]);
+		return 1;
+	}
+	return 0;
+}
+
 void parse_options(int argc, char **argv, t_options *options, int *path_start)
 {
 	int	i;
 	int	j;
+	int	path_write;
+	int	stop_options;
 
 	i = 1;
-	while (i < argc && argv[i][0] == '-' && argv[i][1] != '\0') {
+	path_write = 1;
+	stop_options = 0;
+	while (i < argc) {
+		if (stop_options || argv[i][0] != '-' || argv[i][1] == '\0') {
+			argv[path_write++] = argv[i++];
+			continue;
+		}
 		if (strcmp(argv[i], "--") == 0) {
+			stop_options = 1;
 			i++;
-			break;
+			continue;
 		}
 		if (argv[i][1] == '-')
-			parse_long_option(argv[i], options);
+			parse_long_option(argc, argv, &i, options);
 		else {
 			j = 1;
 			while (argv[i][j]) {
@@ -366,6 +548,14 @@ void parse_options(int argc, char **argv, t_options *options, int *path_start)
 					}
 					break;
 				}
+				if (argv[i][j] == 'I') {
+					if (!parse_string_argument(argc, argv, &i, &j,
+							&options->option_ignore_pattern)) {
+						fprintf(stderr, "myls: option requires an argument -- 'I'\n");
+						exit(2);
+					}
+					break;
+				}
 				parse_short_option(argv[i][j], options);
 				j++;
 			}
@@ -374,7 +564,8 @@ void parse_options(int argc, char **argv, t_options *options, int *path_start)
 	}
 	if (options->option_zero)
 		set_display_mode(options, '1');
-	*path_start = i;
+	*path_start = 1;
+	argv[path_write] = NULL;
 }
 
 void free_options(t_options *options)

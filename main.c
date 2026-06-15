@@ -169,10 +169,14 @@ int main(int argc, char **argv)
 	t_options	options;
 	int			path_start;
 	int			exit_code;
+	int			effective_argc;
 
 	init_options(&options);
 	parse_options(argc, argv, &options, &path_start);
-	exit_code = process_paths(argc, argv, path_start, &options);
+	effective_argc = path_start;
+	while (effective_argc < argc && argv[effective_argc] != NULL)
+		effective_argc++;
+	exit_code = process_paths(effective_argc, argv, path_start, &options);
 	free_options(&options);
 	return exit_code;
 }

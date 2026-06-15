@@ -85,8 +85,8 @@ static int	compare_entries_base(const t_entry *a, const t_entry *b,
 	int		cmp;
 
 	if (options->option_group_directories_first
-		&& entry_is_dir(a) != entry_is_dir(b))
-		return entry_is_dir(a) ? -1 : 1;
+		&& entry_is_dir_for_grouping(a) != entry_is_dir_for_grouping(b))
+		return entry_is_dir_for_grouping(a) ? -1 : 1;
 	if (options->sort_mode == SORT_TIME) {
 		ats = entry_selected_timespec(a, options);
 		bts = entry_selected_timespec(b, options);

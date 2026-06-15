@@ -18,5 +18,6 @@ int		fill_entry(t_entry *entry, const char *name, const char *path,
 void	free_entry(t_entry *entry);
 int		entry_is_dir(const t_entry *entry);
 int		entry_is_symlink(const t_entry *entry);
+int		entry_is_dir_for_grouping(const t_entry *entry);
 
 #endif
