@@ -1,6 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 #include "utils.h"
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/xattr.h>
 
 #ifndef S_ISVTX
 # define S_ISVTX 01000
@@ -50,6 +53,57 @@ void format_permissions(mode_t mode, char *str)
 		str[6] = (mode & S_IXGRP) ? 's' : 'S';
 	if (mode & S_ISVTX)
 		str[9] = (mode & S_IXOTH) ? 't' : 'T';
+}
+
+static int	is_no_xattr_error(int err)
+{
+	return err == ENODATA || err == ENOTSUP || err == EOPNOTSUPP;
+}
+
+static int	entry_xattr_status(const t_entry *entry, const char *name)
+{
+	ssize_t	size;
+
+	errno = 0;
+	if (entry->stat_followed)
+		size = getxattr(entry->path, name, NULL, 0);
+	else
+		size = lgetxattr(entry->path, name, NULL, 0);
+	if (size >= 0)
+		return 1;
+	if (is_no_xattr_error(errno))
+		return 0;
+	return -1;
+}
+
+static char	access_method_marker(const t_entry *entry)
+{
+	int	acl;
+	int	selinux;
+	int	capability;
+
+	acl = entry_xattr_status(entry, "system.posix_acl_access");
+	if (acl > 0)
+		return '+';
+	selinux = entry_xattr_status(entry, "security.selinux");
+	capability = entry_xattr_status(entry, "security.capability");
+	if (acl < 0 || selinux < 0 || capability < 0)
+		return '?';
+	if (selinux > 0 || capability > 0)
+		return '.';
+	return ' ';
+}
+
+void format_permissions_entry(const t_entry *entry, char *str)
+{
+	char	marker;
+
+	format_permissions(entry->info.st_mode, str);
+	marker = access_method_marker(entry);
+	if (marker != ' ') {
+		str[10] = marker;
+		str[11] = '\0';
+	}
 }
 
 time_t entry_selected_time(const t_entry *entry, const t_options *options)

@@ -19,6 +19,18 @@ typedef enum e_sort_mode
 	SORT_WIDTH
 }	t_sort_mode;
 
+typedef enum e_quoting_style
+{
+	QUOTE_LITERAL = 0,
+	QUOTE_ESCAPE,
+	QUOTE_C,
+	QUOTE_LOCALE,
+	QUOTE_SHELL,
+	QUOTE_SHELL_ALWAYS,
+	QUOTE_SHELL_ESCAPE,
+	QUOTE_SHELL_ESCAPE_ALWAYS
+}	t_quoting_style;
+
 typedef struct s_options {
 	int option_a;
 	int option_A;
@@ -81,8 +93,10 @@ typedef struct s_options {
 
 	int option_file_type;
 	int option_block_size_value;
+	int option_sort_explicit;
 	t_color_mode color_mode;
 	t_sort_mode sort_mode;
+	t_quoting_style quoting_style;
 	char *option_hide_pattern;
 	char *option_ignore_pattern;
 	char *option_time_style;

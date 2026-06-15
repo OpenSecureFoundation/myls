@@ -26,6 +26,7 @@ void init_options(t_options *options)
 	options->option_w_valeur = 80;
 	options->color_mode = COLOR_NEVER;
 	options->sort_mode = SORT_NAME;
+	options->quoting_style = QUOTE_LITERAL;
 }
 
 static void	set_sort_mode(t_options *options, t_sort_mode mode)
@@ -35,6 +36,7 @@ static void	set_sort_mode(t_options *options, t_sort_mode mode)
 	options->option_U = 0;
 	options->option_X = 0;
 	options->option_v = 0;
+	options->option_sort_explicit = 1;
 	options->sort_mode = mode;
 	if (mode == SORT_TIME)
 		options->option_t = 1;
@@ -46,6 +48,16 @@ static void	set_sort_mode(t_options *options, t_sort_mode mode)
 		options->option_X = 1;
 	else if (mode == SORT_VERSION)
 		options->option_v = 1;
+}
+
+static void	set_implicit_time_sort(t_options *options)
+{
+	options->option_t = 1;
+	options->option_S = 0;
+	options->option_U = 0;
+	options->option_X = 0;
+	options->option_v = 0;
+	options->sort_mode = SORT_TIME;
 }
 
 static void	set_display_mode(t_options *options, char mode)
@@ -62,6 +74,33 @@ static void	set_display_mode(t_options *options, char mode)
 		options->option_m = 1;
 	else if (mode == 'x')
 		options->option_x = 1;
+}
+
+static void	apply_zero_implied_options(t_options *options)
+{
+	set_display_mode(options, '1');
+	options->color_mode = COLOR_NEVER;
+	options->option_color = 0;
+	options->option_b = 0;
+	options->option_q = 0;
+	options->option_Q = 0;
+	options->option_N = 1;
+	options->quoting_style = QUOTE_LITERAL;
+}
+
+static void	set_quoting_style(t_options *options, t_quoting_style style)
+{
+	options->option_b = 0;
+	options->option_q = 0;
+	options->option_N = 0;
+	options->option_Q = 0;
+	options->quoting_style = style;
+	if (style == QUOTE_LITERAL)
+		options->option_N = 1;
+	else if (style == QUOTE_ESCAPE)
+		options->option_b = 1;
+	else if (style == QUOTE_C || style == QUOTE_LOCALE)
+		options->option_Q = 1;
 }
 
 static void	parse_error(const char *message, const char *arg)
@@ -204,20 +243,22 @@ static void	parse_indicator_style(const char *val, t_options *options)
 
 static void	parse_quoting_style(const char *val, t_options *options)
 {
-	options->option_b = 0;
-	options->option_q = 0;
-	options->option_N = 0;
-	options->option_Q = 0;
-	if (strcmp(val, "literal") == 0 || strcmp(val, "locale") == 0)
-		options->option_N = 1;
-	else if (strcmp(val, "c") == 0) {
-		options->option_Q = 1;
-		options->option_b = 1;
-	}
+	if (strcmp(val, "literal") == 0)
+		set_quoting_style(options, QUOTE_LITERAL);
+	else if (strcmp(val, "locale") == 0)
+		set_quoting_style(options, QUOTE_LOCALE);
+	else if (strcmp(val, "c") == 0)
+		set_quoting_style(options, QUOTE_C);
 	else if (strcmp(val, "escape") == 0)
-		options->option_b = 1;
-	else if (strncmp(val, "shell", 5) == 0)
-		options->option_Q = 1;
+		set_quoting_style(options, QUOTE_ESCAPE);
+	else if (strcmp(val, "shell") == 0)
+		set_quoting_style(options, QUOTE_SHELL);
+	else if (strcmp(val, "shell-always") == 0)
+		set_quoting_style(options, QUOTE_SHELL_ALWAYS);
+	else if (strcmp(val, "shell-escape") == 0)
+		set_quoting_style(options, QUOTE_SHELL_ESCAPE);
+	else if (strcmp(val, "shell-escape-always") == 0)
+		set_quoting_style(options, QUOTE_SHELL_ESCAPE_ALWAYS);
 	else
 		parse_error("invalid argument for --quoting-style", val);
 }
@@ -279,7 +320,7 @@ static void	parse_long_option(int argc, char **argv, int *i, t_options *options)
 	else if (strcmp(arg, "--author") == 0)
 		options->option_author = 1;
 	else if (strcmp(arg, "--escape") == 0)
-		options->option_b = 1;
+		set_quoting_style(options, QUOTE_ESCAPE);
 	else if (strcmp(arg, "--ignore-backups") == 0)
 		options->option_B = 1;
 	else if (strcmp(arg, "--directory") == 0)
@@ -317,7 +358,7 @@ static void	parse_long_option(int argc, char **argv, int *i, t_options *options)
 		options->option_n = 1;
 	}
 	else if (strcmp(arg, "--literal") == 0)
-		options->option_N = 1;
+		set_quoting_style(options, QUOTE_LITERAL);
 	else if (strcmp(arg, "--indicator-style=slash") == 0)
 		options->option_p = 1;
 	else if ((value = long_value(argc, argv, i, arg, "--indicator-style")) != NULL)
@@ -329,7 +370,7 @@ static void	parse_long_option(int argc, char **argv, int *i, t_options *options)
 		options->option_q = 0;
 	}
 	else if (strcmp(arg, "--quote-name") == 0)
-		options->option_Q = 1;
+		set_quoting_style(options, QUOTE_C);
 	else if ((value = long_value(argc, argv, i, arg, "--quoting-style")) != NULL)
 		parse_quoting_style(value, options);
 	else if (strcmp(arg, "--reverse") == 0)
@@ -338,8 +379,10 @@ static void	parse_long_option(int argc, char **argv, int *i, t_options *options)
 		options->option_R = 1;
 	else if (strcmp(arg, "--size") == 0)
 		options->option_s = 1;
-	else if (strcmp(arg, "--full-time") == 0)
+	else if (strcmp(arg, "--full-time") == 0) {
+		options->option_l = 1;
 		options->option_full_time = 1;
+	}
 	else if (strcmp(arg, "--color") == 0)
 		parse_color_value("always", options);
 	else if (strncmp(arg, "--color=", 8) == 0)
@@ -397,7 +440,7 @@ static void	parse_short_option(char c, t_options *options)
 	else if (c == 'A')
 		options->option_A = 1;
 	else if (c == 'b')
-		options->option_b = 1;
+		set_quoting_style(options, QUOTE_ESCAPE);
 	else if (c == 'B')
 		options->option_B = 1;
 	else if (c == 'c')
@@ -440,7 +483,7 @@ static void	parse_short_option(char c, t_options *options)
 		options->option_n = 1;
 	}
 	else if (c == 'N')
-		options->option_N = 1;
+		set_quoting_style(options, QUOTE_LITERAL);
 	else if (c == 'o') {
 		options->option_l = 1;
 		options->option_o = 1;
@@ -450,7 +493,7 @@ static void	parse_short_option(char c, t_options *options)
 	else if (c == 'q')
 		options->option_q = 1;
 	else if (c == 'Q')
-		options->option_Q = 1;
+		set_quoting_style(options, QUOTE_C);
 	else if (c == 'r')
 		options->option_r = 1;
 	else if (c == 'R')
@@ -563,7 +606,10 @@ void parse_options(int argc, char **argv, t_options *options, int *path_start)
 		i++;
 	}
 	if (options->option_zero)
-		set_display_mode(options, '1');
+		apply_zero_implied_options(options);
+	if (!options->option_l && !options->option_sort_explicit
+		&& (options->option_u || options->option_c))
+		set_implicit_time_sort(options);
 	*path_start = 1;
 	argv[path_write] = NULL;
 }

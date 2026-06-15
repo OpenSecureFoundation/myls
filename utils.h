@@ -8,6 +8,7 @@
 #include "options.h"
 
 void		format_permissions(mode_t mode, char *str);
+void		format_permissions_entry(const t_entry *entry, char *str);
 time_t		entry_selected_time(const t_entry *entry, const t_options *options);
 long long	block_unit(const t_options *options);
 long long	ceil_div_ll(long long value, long long divisor);

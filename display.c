@@ -2,6 +2,7 @@
 #include "display.h"
 #include "utils.h"
 #include <ctype.h>
+#include <fnmatch.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -12,12 +13,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#define ANSI_BLUE   "\x1b[34m"
-#define ANSI_CYAN   "\x1b[36m"
-#define ANSI_GREEN  "\x1b[32m"
-#define ANSI_MAGENTA "\x1b[35m"
-#define ANSI_YELLOW "\x1b[33m"
-#define ANSI_RESET  "\x1b[0m"
+#ifndef S_ISVTX
+# define S_ISVTX 01000
+#endif
 
 typedef struct s_widths {
 	int inode;
@@ -50,19 +48,265 @@ static int	color_enabled(t_options *opts)
 	return 0;
 }
 
-static const char	*entry_color(const t_entry *entry)
+static const char	*next_ls_color_token(const char *p, const char **end)
+{
+	int	escaped;
+
+	escaped = 0;
+	while (*p && *p == ':')
+		p++;
+	*end = p;
+	while (**end) {
+		if (!escaped && **end == ':')
+			break;
+		if (!escaped && **end == '\\')
+			escaped = 1;
+		else
+			escaped = 0;
+		(*end)++;
+	}
+	return p;
+}
+
+static char	decode_escape_char(const char **src)
+{
+	int	value;
+	int	count;
+
+	(*src)++;
+	if (**src == 'e' || **src == 'E') {
+		(*src)++;
+		return '\033';
+	}
+	if (**src == 'n') {
+		(*src)++;
+		return '\n';
+	}
+	if (**src == 'r') {
+		(*src)++;
+		return '\r';
+	}
+	if (**src == 't') {
+		(*src)++;
+		return '\t';
+	}
+	if (**src == 'x') {
+		(*src)++;
+		value = 0;
+		count = 0;
+		while (isxdigit((unsigned char)**src) && count < 2) {
+			value *= 16;
+			if (**src >= '0' && **src <= '9')
+				value += **src - '0';
+			else
+				value += tolower((unsigned char)**src) - 'a' + 10;
+			(*src)++;
+			count++;
+		}
+		return (char)value;
+	}
+	if (**src >= '0' && **src <= '7') {
+		value = 0;
+		count = 0;
+		while (**src >= '0' && **src <= '7' && count < 3) {
+			value = value * 8 + (**src - '0');
+			(*src)++;
+			count++;
+		}
+		return (char)value;
+	}
+	if (**src)
+		return *((*src)++);
+	return '\\';
+}
+
+static void	copy_ls_value(char *dst, size_t dst_size,
+	const char *start, const char *end)
+{
+	size_t	i;
+
+	i = 0;
+	while (start < end && i + 1 < dst_size) {
+		if (*start == '\\')
+			dst[i++] = decode_escape_char(&start);
+		else
+			dst[i++] = *start++;
+	}
+	dst[i] = '\0';
+}
+
+static int	ls_colors_lookup(const char *key, char *value, size_t value_size)
+{
+	const char	*env;
+	const char	*token;
+	const char	*end;
+	const char	*eq;
+	size_t		key_len;
+	int			found;
+
+	env = getenv("LS_COLORS");
+	if (!env || !*env)
+		return 0;
+	key_len = strlen(key);
+	found = 0;
+	token = env;
+	while (*token) {
+		token = next_ls_color_token(token, &end);
+		eq = memchr(token, '=', (size_t)(end - token));
+		if (eq && (size_t)(eq - token) == key_len
+			&& strncmp(token, key, key_len) == 0) {
+			copy_ls_value(value, value_size, eq + 1, end);
+			found = 1;
+		}
+		token = (*end == ':') ? end + 1 : end;
+	}
+	return found;
+}
+
+static int	ls_colors_match_extension(const char *name,
+	char *value, size_t value_size)
+{
+	const char	*env;
+	const char	*token;
+	const char	*end;
+	const char	*eq;
+	char		pattern[256];
+	int			found;
+
+	env = getenv("LS_COLORS");
+	if (!env || !*env)
+		return 0;
+	found = 0;
+	token = env;
+	while (*token) {
+		token = next_ls_color_token(token, &end);
+		eq = memchr(token, '=', (size_t)(end - token));
+		if (eq && eq > token && *token == '*'
+			&& (size_t)(eq - token) < sizeof(pattern)) {
+			copy_ls_value(pattern, sizeof(pattern), token, eq);
+			if (fnmatch(pattern, name, FNM_PERIOD) == 0) {
+				copy_ls_value(value, value_size, eq + 1, end);
+				found = 1;
+			}
+		}
+		token = (*end == ':') ? end + 1 : end;
+	}
+	return found;
+}
+
+static int	is_broken_symlink(const t_entry *entry)
+{
+	struct stat	target;
+
+	return S_ISLNK(entry->lstat_info.st_mode)
+		&& stat(entry->path, &target) == -1;
+}
+
+static int	is_other_writable(mode_t mode)
+{
+	return (mode & S_IWOTH) != 0;
+}
+
+static int	entry_ls_color_key(const t_entry *entry, char *key, size_t key_size)
+{
+	mode_t	mode;
+
+	mode = entry->info.st_mode;
+	if (is_broken_symlink(entry))
+		return snprintf(key, key_size, "or") > 0;
+	if (S_ISLNK(entry->lstat_info.st_mode))
+		return snprintf(key, key_size, "ln") > 0;
+	if (S_ISDIR(mode)) {
+		if ((mode & S_ISVTX) && is_other_writable(mode))
+			return snprintf(key, key_size, "tw") > 0;
+		if (is_other_writable(mode))
+			return snprintf(key, key_size, "ow") > 0;
+		if (mode & S_ISVTX)
+			return snprintf(key, key_size, "st") > 0;
+		return snprintf(key, key_size, "di") > 0;
+	}
+	if (S_ISFIFO(mode))
+		return snprintf(key, key_size, "pi") > 0;
+	if (S_ISSOCK(mode))
+		return snprintf(key, key_size, "so") > 0;
+	if (S_ISBLK(mode))
+		return snprintf(key, key_size, "bd") > 0;
+	if (S_ISCHR(mode))
+		return snprintf(key, key_size, "cd") > 0;
+	if (mode & S_ISUID)
+		return snprintf(key, key_size, "su") > 0;
+	if (mode & S_ISGID)
+		return snprintf(key, key_size, "sg") > 0;
+	if (mode & (S_IXUSR | S_IXGRP | S_IXOTH))
+		return snprintf(key, key_size, "ex") > 0;
+	return snprintf(key, key_size, "fi") > 0;
+}
+
+static const char	*default_entry_color_code(const t_entry *entry)
 {
 	if (S_ISDIR(entry->info.st_mode))
-		return ANSI_BLUE;
+		return "34";
 	if (S_ISLNK(entry->lstat_info.st_mode))
-		return ANSI_CYAN;
+		return "36";
 	if (S_ISSOCK(entry->info.st_mode))
-		return ANSI_MAGENTA;
+		return "35";
 	if (S_ISFIFO(entry->info.st_mode))
-		return ANSI_YELLOW;
+		return "33";
 	if (entry->info.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
-		return ANSI_GREEN;
+		return "32";
 	return NULL;
+}
+
+static int	entry_color_code(const t_entry *entry, char *code, size_t code_size)
+{
+	const char	*env;
+	const char	*default_code;
+	char		key[8];
+
+	env = getenv("LS_COLORS");
+	if (!env || !*env) {
+		default_code = default_entry_color_code(entry);
+		if (!default_code)
+			return 0;
+		snprintf(code, code_size, "%s", default_code);
+		return 1;
+	}
+	if (entry_ls_color_key(entry, key, sizeof(key))
+		&& ls_colors_lookup(key, code, code_size))
+		return code[0] != '\0';
+	if (S_ISREG(entry->info.st_mode)
+		&& ls_colors_match_extension(entry->name, code, code_size))
+		return code[0] != '\0';
+	if (ls_colors_lookup("no", code, code_size)
+		|| ls_colors_lookup("fi", code, code_size))
+		return code[0] != '\0';
+	return 0;
+}
+
+static void	print_color_sequence(const char *code)
+{
+	char	lc[32];
+	char	rc[32];
+
+	if (!ls_colors_lookup("lc", lc, sizeof(lc)))
+		snprintf(lc, sizeof(lc), "\033[");
+	if (!ls_colors_lookup("rc", rc, sizeof(rc)))
+		snprintf(rc, sizeof(rc), "m");
+	printf("%s%s%s", lc, code, rc);
+}
+
+static void	print_color_reset(void)
+{
+	char	rs[64];
+	char	ec[32];
+
+	if (ls_colors_lookup("ec", ec, sizeof(ec))) {
+		printf("%s", ec);
+		return;
+	}
+	if (!ls_colors_lookup("rs", rs, sizeof(rs)))
+		snprintf(rs, sizeof(rs), "0");
+	print_color_sequence(rs);
 }
 
 static char	type_indicator(const t_entry *entry, t_options *opts)
@@ -85,64 +329,231 @@ static char	type_indicator(const t_entry *entry, t_options *opts)
 	return '\0';
 }
 
-static void	append_escaped_char(char **dst, unsigned char c, t_options *opts)
+static void	append_raw(char **dst, char c)
 {
-	if (opts->option_b && !isprint(c)) {
-		sprintf(*dst, "\\%03o", c);
-		*dst += 4;
-	}
-	else if (opts->option_q && !isprint(c)) {
-		**dst = '?';
-		(*dst)++;
-	}
-	else {
-		if (opts->option_Q && (c == '"' || c == '\\')) {
-			**dst = '\\';
-			(*dst)++;
-		}
-		**dst = (char)c;
-		(*dst)++;
-	}
+	**dst = c;
+	(*dst)++;
 }
 
-static char	*format_name(const char *name, t_options *opts)
+static void	append_text(char **dst, const char *text)
+{
+	while (*text)
+		append_raw(dst, *text++);
+}
+
+static void	append_octal_escape(char **dst, unsigned char c)
+{
+	sprintf(*dst, "\\%03o", c);
+	*dst += 4;
+}
+
+static void	append_c_escape(char **dst, unsigned char c,
+	int escape_double_quote, int escape_space, t_options *opts)
+{
+	if (opts->option_q && !isprint(c)) {
+		append_raw(dst, '?');
+		return;
+	}
+	if (c == '\n')
+		append_text(dst, "\\n");
+	else if (c == '\t')
+		append_text(dst, "\\t");
+	else if (c == '\r')
+		append_text(dst, "\\r");
+	else if (c == '\b')
+		append_text(dst, "\\b");
+	else if (c == '\f')
+		append_text(dst, "\\f");
+	else if (c == '\v')
+		append_text(dst, "\\v");
+	else if (c == '\\')
+		append_text(dst, "\\\\");
+	else if (c == '"' && escape_double_quote)
+		append_text(dst, "\\\"");
+	else if (c == ' ' && escape_space)
+		append_text(dst, "\\ ");
+	else if (isprint(c))
+		append_raw(dst, (char)c);
+	else
+		append_octal_escape(dst, c);
+}
+
+static int	shell_needs_quotes(const char *name, int always)
+{
+	const unsigned char	*p;
+
+	if (always || name[0] == '\0')
+		return 1;
+	p = (const unsigned char *)name;
+	while (*p) {
+		if (!(isalnum(*p) || *p == '_' || *p == '@' || *p == '%'
+				|| *p == '+' || *p == '=' || *p == ':' || *p == ','
+				|| *p == '.' || *p == '/' || *p == '-' || *p == '~'))
+			return 1;
+		p++;
+	}
+	return 0;
+}
+
+static char	*format_literal_name(const char *name, t_options *opts)
 {
 	char	*formatted;
 	char	*p;
-	size_t	len;
 
-	len = strlen(name);
-	formatted = malloc(len * 4 + 3);
+	formatted = malloc(strlen(name) * 4 + 1);
 	if (!formatted)
 		return NULL;
 	p = formatted;
-	if (opts->option_Q)
-		*p++ = '"';
 	while (*name) {
-		append_escaped_char(&p, (unsigned char)*name, opts);
+		if (opts->option_q && !isprint((unsigned char)*name))
+			append_raw(&p, '?');
+		else
+			append_raw(&p, *name);
 		name++;
 	}
-	if (opts->option_Q)
-		*p++ = '"';
 	*p = '\0';
 	return formatted;
 }
 
+static char	*format_escape_name(const char *name, t_options *opts)
+{
+	char	*formatted;
+	char	*p;
+
+	formatted = malloc(strlen(name) * 4 + 1);
+	if (!formatted)
+		return NULL;
+	p = formatted;
+	while (*name) {
+		append_c_escape(&p, (unsigned char)*name, 0, 1, opts);
+		name++;
+	}
+	*p = '\0';
+	return formatted;
+}
+
+static char	*format_c_name(const char *name, t_options *opts, char quote)
+{
+	char	*formatted;
+	char	*p;
+
+	formatted = malloc(strlen(name) * 4 + 3);
+	if (!formatted)
+		return NULL;
+	p = formatted;
+	append_raw(&p, quote);
+	while (*name) {
+		if (quote == '\'' && *name == '\'')
+			append_text(&p, "'\\''");
+		else
+			append_c_escape(&p, (unsigned char)*name, quote == '"', 0, opts);
+		name++;
+	}
+	append_raw(&p, quote);
+	*p = '\0';
+	return formatted;
+}
+
+static const char	*shell_escape_for_char(unsigned char c)
+{
+	if (c == '\n')
+		return "\\n";
+	if (c == '\t')
+		return "\\t";
+	if (c == '\r')
+		return "\\r";
+	if (c == '\b')
+		return "\\b";
+	if (c == '\f')
+		return "\\f";
+	if (c == '\v')
+		return "\\v";
+	return NULL;
+}
+
+static void	append_shell_escaped_control(char **dst, unsigned char c)
+{
+	const char	*esc;
+
+	esc = shell_escape_for_char(c);
+	append_raw(dst, '\'');
+	append_text(dst, "$'");
+	if (esc)
+		append_text(dst, esc);
+	else
+		append_octal_escape(dst, c);
+	append_raw(dst, '\'');
+	append_raw(dst, '\'');
+}
+
+static char	*format_shell_name(const char *name, t_options *opts, int always,
+	int escape_controls)
+{
+	char				*formatted;
+	char				*p;
+	const unsigned char	*s;
+	int					quoted;
+
+	quoted = shell_needs_quotes(name, always);
+	if (!quoted)
+		return format_literal_name(name, opts);
+	formatted = malloc(strlen(name) * 12 + 16);
+	if (!formatted)
+		return NULL;
+	p = formatted;
+	append_raw(&p, '\'');
+	s = (const unsigned char *)name;
+	while (*s) {
+		if (opts->option_q && !isprint(*s))
+			append_raw(&p, '?');
+		else if (*s == '\'')
+			append_text(&p, "'\\''");
+		else if (escape_controls && !isprint(*s))
+			append_shell_escaped_control(&p, *s);
+		else
+			append_raw(&p, (char)*s);
+		s++;
+	}
+	append_raw(&p, '\'');
+	*p = '\0';
+	return formatted;
+}
+
+static char	*format_name(const char *name, t_options *opts)
+{
+	if (opts->quoting_style == QUOTE_ESCAPE)
+		return format_escape_name(name, opts);
+	if (opts->quoting_style == QUOTE_C)
+		return format_c_name(name, opts, '"');
+	if (opts->quoting_style == QUOTE_LOCALE)
+		return format_c_name(name, opts, '\'');
+	if (opts->quoting_style == QUOTE_SHELL)
+		return format_shell_name(name, opts, 0, 0);
+	if (opts->quoting_style == QUOTE_SHELL_ALWAYS)
+		return format_shell_name(name, opts, 1, 0);
+	if (opts->quoting_style == QUOTE_SHELL_ESCAPE)
+		return format_shell_name(name, opts, 0, 1);
+	if (opts->quoting_style == QUOTE_SHELL_ESCAPE_ALWAYS)
+		return format_shell_name(name, opts, 1, 1);
+	return format_literal_name(name, opts);
+}
+
 static void	print_entry_name(const t_entry *entry, t_options *opts)
 {
-	char		*name;
-	char		indicator;
-	const char	*color;
+	char	*name;
+	char	indicator;
+	char	color[64];
+	int		use_color;
 
 	name = format_name(entry->name, opts);
 	if (!name)
 		return;
-	color = color_enabled(opts) ? entry_color(entry) : NULL;
-	if (color)
-		printf("%s", color);
+	use_color = color_enabled(opts) && entry_color_code(entry, color, sizeof(color));
+	if (use_color)
+		print_color_sequence(color);
 	printf("%s", name);
-	if (color)
-		printf("%s", ANSI_RESET);
+	if (use_color)
+		print_color_reset();
 	indicator = type_indicator(entry, opts);
 	if (indicator)
 		putchar(indicator);
@@ -316,7 +727,7 @@ static void	print_symlink_target(const t_entry *entry)
 static void	display_long_entry(const t_entry *entry, t_options *opts,
 	t_widths *widths)
 {
-	char	perms[11];
+	char	perms[12];
 	char	owner_buf[64];
 	char	group_buf[64];
 	char	size_buf[64];
@@ -325,7 +736,7 @@ static void	display_long_entry(const t_entry *entry, t_options *opts,
 	const char	*group;
 
 	print_prefix_fields(entry, opts, widths);
-	format_permissions(entry->info.st_mode, perms);
+	format_permissions_entry(entry, perms);
 	owner = owner_name(entry, opts, owner_buf, sizeof(owner_buf));
 	group = group_name(entry, opts, group_buf, sizeof(group_buf));
 	format_size_field(entry, opts, size_buf, sizeof(size_buf));

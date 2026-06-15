@@ -40,6 +40,11 @@ static int	is_backup_name(const char *name)
 	return len > 0 && name[len - 1] == '~';
 }
 
+static int	pattern_matches(const char *pattern, const char *name)
+{
+	return fnmatch(pattern, name, FNM_PERIOD) == 0;
+}
+
 static int	should_skip_name(const char *name, t_options *opts)
 {
 	if (!opts->option_a) {
@@ -51,10 +56,10 @@ static int	should_skip_name(const char *name, t_options *opts)
 	if (opts->option_B && is_backup_name(name))
 		return 1;
 	if (opts->option_ignore_pattern
-		&& fnmatch(opts->option_ignore_pattern, name, 0) == 0)
+		&& pattern_matches(opts->option_ignore_pattern, name))
 		return 1;
 	if (!opts->option_a && !opts->option_A && opts->option_hide_pattern
-		&& fnmatch(opts->option_hide_pattern, name, 0) == 0)
+		&& pattern_matches(opts->option_hide_pattern, name))
 		return 1;
 	return 0;
 }

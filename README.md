@@ -77,15 +77,15 @@ installé; sinon il affiche `SKIP` et sort avec le code 0.
 | `-a` | `--all` | Complet | Oui | Affiche aussi `.` et `..`. |
 | `-A` | `--almost-all` | Complet | Oui | Affiche les cachés sauf `.` et `..`. |
 | `-d` | `--directory` | Complet | Oui | Affiche le répertoire lui-même. |
-| - | `--hide=PATTERN` | Complet | Oui | Utilise `fnmatch`; ignoré si `-a` ou `-A`. |
-| `-I PATTERN` | `--ignore=PATTERN` | Complet | Oui | Utilise `fnmatch`. |
+| - | `--hide=PATTERN` | Complet | Oui | Utilise `fnmatch` avec `FNM_PERIOD`; ignoré si `-a` ou `-A`. |
+| `-I PATTERN` | `--ignore=PATTERN` | Complet | Oui | Utilise `fnmatch` avec `FNM_PERIOD`, comme GNU pour les noms commençant par `.`. |
 | `-B` | `--ignore-backups` | Complet | Oui | Ignore les noms finissant par `~`. |
 | `-l` | `--format=long`, `--format=verbose` | Complet | Oui | Format long avec `total`, propriétaire, groupe, taille, date, lien `-> cible`. |
 | `-1` | `--format=single-column` | Complet | Oui | Une entrée par ligne. |
 | `-C` | `--format=vertical` | Partiel | Oui | Colonnes verticales, alignement simplifié. |
 | `-x` | `--format=horizontal`, `--format=across` | Partiel | Oui | Colonnes horizontales, alignement simplifié. |
 | `-m` | `--format=commas` | Complet | Oui | Entrées séparées par virgule. |
-| - | `--zero` | Complet | Oui | Séparateur NUL. |
+| - | `--zero` | Complet | Oui | Séparateur NUL; implique `-1`, couleur désactivée, caractères de contrôle visibles et quoting literal. |
 | `-w COLS` | `--width=COLS` | Complet | Oui | Force la largeur d'affichage. |
 | `-T COLS` | `--tabsize=COLS` | Partiel | Oui | Utilisé comme espacement de colonnes, pas comme tabulation GNU complète. |
 | `-h` | `--human-readable` | Complet | Oui | Tailles base 1024. |
@@ -101,8 +101,8 @@ installé; sinon il affiche `SKIP` et sort avec le code 0.
 | `-i` | `--inode` | Complet | Oui | Affiche le numéro d'inode. |
 | - | permissions spéciales | Complet | Oui indirect | Gère setuid `s/S`, setgid `s/S`, sticky `t/T`. |
 | `-t` | `--sort=time` | Complet | Oui | Tri par temps avec nanosecondes. |
-| `-u` | `--time=atime/access/use` | Complet | Non dédié | Utilise `st_atime`. |
-| `-c` | `--time=ctime/status` | Complet | Non dédié | Utilise `st_ctime`. |
+| `-u` | `--time=atime/access/use` | Complet | Oui | Utilise `st_atime`; sans `-l`, trie aussi par atime comme GNU. |
+| `-c` | `--time=ctime/status` | Complet | Oui | Utilise `st_ctime`; sans `-l`, trie aussi par ctime comme GNU. |
 | - | `--time=mtime/modify/modification` | Complet | Non dédié | Retour au temps de modification. |
 | - | `--time=birth/creation` | Non supporté | Oui | Rejeté proprement; birth time non portable POSIX. |
 | - | `--full-time` | Complet | Oui | Équivalent pratique à `--time-style=full-iso`. |
@@ -126,25 +126,25 @@ installé; sinon il affiche `SKIP` et sort avec le code 0.
 | - | `--indicator-style=none` | Complet | Oui | Désactive les indicateurs. |
 | - | `--indicator-style=file-type` | Complet | Oui | Indicateurs sans `*`. |
 | - | `--indicator-style=classify` | Complet | Oui | Indicateurs type `-F`. |
-| - | `--color`, `--color=always` | Partiel | Oui | Couleurs fixes simplifiées. |
+| - | `--color`, `--color=always` | Complet | Oui | Couleurs forcées; lit `LS_COLORS` si disponible, sinon fallback intégré. |
 | - | `--color=never` | Complet | Oui | Désactive les couleurs. |
 | - | `--color=auto` | Complet | Non dédié | Couleur seulement si `stdout` est un terminal. |
-| - | `LS_COLORS` | Non supporté | Non | Non interprété. |
+| - | `LS_COLORS` | Complet | Oui | Supporte codes de types GNU courants, motifs `*suffix`, `rs`, `lc`, `rc`, `ec`. |
 | `-L` | `--dereference` | Complet | Oui | Suit les liens symboliques. |
 | `-H` | `--dereference-command-line` | Complet | Non dédié | Suit seulement les liens fournis en argument. |
 | - | `--dereference-command-line-symlink-to-dir` | Complet | Non dédié | Suit les liens de ligne de commande vers dossiers. |
 | - | lien cassé | Complet | Oui | Affiché en `-l` sous forme `lien -> cible`. |
 | `-R` | `--recursive` | Complet | Oui | Parcours récursif, ignore `.` et `..`. |
-| `-b` | `--escape` | Partiel | Non dédié | Échappement octal simple des non imprimables. |
-| `-q` | `--hide-control-chars` | Partiel | Non dédié | Remplace les non imprimables par `?`. |
-| - | `--show-control-chars` | Partiel | Non dédié | Annule `-b`/`-q`; gestion terminal simplifiée. |
-| `-N` | `--literal` | Partiel | Non dédié | Désactive le quoting ajouté par `myls`; pas toute la logique GNU. |
-| `-Q` | `--quote-name` | Partiel | Non dédié | Guillemets doubles simples. |
-| - | `--quoting-style=WORD` | Partiel | Non dédié | Styles principaux mappés vers quoting simplifié. |
+| `-b` | `--escape` | Complet | Oui | Échappements GNU style `escape`, espaces inclus. |
+| `-q` | `--hide-control-chars` | Complet | Oui | Remplace les non imprimables par `?`. |
+| - | `--show-control-chars` | Complet | Oui | Annule `-b`/`-q` pour afficher les caractères de contrôle. |
+| `-N` | `--literal` | Complet | Oui | Affiche les noms littéralement. |
+| `-Q` | `--quote-name` | Complet | Oui | Style GNU `c`, guillemets doubles et échappements C. |
+| - | `--quoting-style=WORD` | Complet | Oui | Supporte `literal`, `locale`, `shell`, `shell-always`, `shell-escape`, `shell-escape-always`, `c`, `escape`. |
 | `-Z` | `--context` | Non supporté | Oui | SELinux/contexte sécurité non géré; rejet code 2. |
 | - | `--lcontext` | Non supporté | Non dédié | SELinux non géré; rejet code 2. |
 | - | `--scontext` | Non supporté | Non dédié | SELinux non géré; rejet code 2. |
-| - | ACL/capability markers | Non supporté | Non | Pas de marqueur `+`, `.`, `?` après permissions. |
+| - | ACL/SELinux/capability markers | Complet | Oui | En `-l`, affiche `+`, `.`, ou `?` via les xattrs Linux `system.posix_acl_access`, `security.selinux`, `security.capability`. |
 | `-D` | `--dired` | Non supporté | Oui indirect | Rejet code 2; indices Emacs dired non générés. |
 | - | `--hyperlink`, `--hyperlink=WHEN` | Non supporté | Oui | Rejet code 2; pas de séquences OSC 8. |
 | - | `--help` | Complet | Oui | Affiche l'aide et sort avec code 0. |
@@ -155,20 +155,20 @@ installé; sinon il affiche `SKIP` et sort avec le code 0.
 
 ## Synthèse de conformité
 
-- Options / comportements complets : 49
-- Options / comportements partiels : 18
-- Options / comportements non supportés : 8
+- Options / comportements complets : 58
+- Options / comportements partiels : 11
+- Options / comportements non supportés : 6
 
 Les nombres ci-dessus comptent les lignes fonctionnelles du tableau, pas
 uniquement les lettres d'options courtes.
 
 ## Différences connues avec GNU `ls`
 
-- Les couleurs sont fixes; `LS_COLORS` n'est pas interprété.
+- Les couleurs lisent `LS_COLORS`; si la variable est absente, `myls` utilise un fallback intégré.
 - Le tri `--sort=version` est volontairement simplifié.
 - Les colonnes `-C` et `-x` sont lisibles mais pas alignées exactement comme GNU.
-- Le quoting GNU complet n'est pas reproduit.
-- SELinux, ACL, capabilities, dired et hyperliens OSC 8 ne sont pas pris en charge.
+- Le quoting GNU courant est reproduit pour les styles documentés; les différences restantes concernent surtout les détails dépendants de locale hors `LC_ALL=C`.
+- Les marqueurs ACL/SELinux/capabilities de `-l` sont pris en charge via xattrs; l'affichage détaillé du contexte avec `-Z` reste non supporté.
 - Les formats `--time-style=+FORMAT1\nFORMAT2` sont acceptés de façon simplifiée.
 - Les détails dépendants de la locale peuvent différer de GNU coreutils.
 
