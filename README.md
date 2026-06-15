@@ -36,34 +36,6 @@ Pour désinstaller :
 make uninstall
 ```
 
-## Tests
-
-```sh
-make re
-sh tests/test_myls.sh
-sh tests/test_options.sh
-sh tests/test_valgrind.sh
-```
-
-Les tests créent une fixture temporaire avec fichiers normaux, cachés,
-exécutables, backup, liens symboliques valides et cassés, lien vers dossier,
-FIFO, noms avec espaces/tabulations/retours ligne, fichier commençant par `-`,
-dates contrôlées et fichiers `file1`, `file2.o`, `file10`.
-
-Les comparaisons exactes utilisent autant que possible :
-
-```sh
-LC_ALL=C /bin/ls --color=never ...
-LC_ALL=C ./myls --color=never ...
-```
-
-Les zones connues comme non fiables byte-for-byte, comme couleurs, quoting
-avancé, alignements et options non supportées, sont testées par présence,
-absence, code de retour ou comportement observable.
-
-`tests/test_valgrind.sh` exécute deux scénarios sous valgrind si l'outil est
-installé; sinon il affiche `SKIP` et sort avec le code 0.
-
 ## Tableau de conformité
 
 États :
